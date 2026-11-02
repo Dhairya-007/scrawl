@@ -82,7 +82,9 @@ export async function handleApi(
   store: RoomStore,
   now: () => number = Date.now,
 ): Promise<ApiResponse> {
-  const path = request.path.replace(/^\/+|\/+$/g, '');
+  // Accept `healthz`, `/healthz` and `/api/healthz` alike: how much of the
+  // prefix survives routing varies by host.
+  const path = request.path.replace(/^\/+|\/+$/g, '').replace(/^api\/?/, '');
 
   // ---- health -----------------------------------------------------------
   if (path === 'healthz') {

@@ -23,8 +23,13 @@ export default async function handler(request: VercelRequest, response: VercelRe
     return;
   }
 
+  // The catch-all segment arrives as an array, a string, or not at all
+  // depending on how the request was routed, so fall back to the raw URL.
   const segments = request.query.path;
-  const path = Array.isArray(segments) ? segments.join('/') : (segments ?? '');
+  let path = Array.isArray(segments) ? segments.join('/') : (segments ?? '');
+  if (!path && request.url) {
+    path = new URL(request.url, 'http://localhost').pathname;
+  }
 
   const query: Record<string, string | undefined> = {};
   for (const [key, value] of Object.entries(request.query)) {
