@@ -34,6 +34,7 @@ import {
   type WordEntry,
 } from '@scrawl/shared';
 import { systemClock, type Clock } from './clock.js';
+import { SNAPSHOT_VERSION, type RoomSnapshot } from './snapshot.js';
 import { newMessageId, newPlayerId, shuffle } from './ids.js';
 
 /** Seconds the drawer gets to choose a word before one is chosen for them. */
@@ -83,6 +84,8 @@ interface PlayerRecord extends Player {
   clientId: string;
   /** Set while the seat is being held open for a reconnect. */
   graceTimer: unknown;
+  /** When that seat stops being held. Survives a snapshot; the timer cannot. */
+  graceUntil: number | null;
 }
 
 export interface RoomOptions {
@@ -223,6 +226,10 @@ export class Room {
     return [...this.players.values()].some((p) => p.name.toLowerCase() === target);
   }
 
+  hasSeat(playerId: string): boolean {
+    return this.players.has(playerId);
+  }
+
   findSeatFor(clientId: string): string | null {
     for (const player of this.players.values()) {
       if (player.clientId === clientId) return player.id;
@@ -260,10 +267,9 @@ export class Room {
     const existingId = this.findSeatFor(input.clientId);
     if (existingId) {
       const player = this.players.get(existingId)!;
-      if (player.graceTimer) {
-        this.clock.clearTimeout(player.graceTimer);
-        player.graceTimer = null;
-      }
+      if (player.graceTimer) this.clock.clearTimeout(player.graceTimer);
+      player.graceTimer = null;
+      player.graceUntil = null;
       player.disconnected = false;
       player.name = cleanName(input.name);
       this.system(`${player.name} is back`, 'join');
@@ -286,6 +292,7 @@ export class Room {
       spectating: this.inGame,
       eliminated: false,
       graceTimer: null,
+      graceUntil: null,
     };
     this.players.set(id, player);
     this.seating.push(id);
@@ -316,8 +323,10 @@ export class Room {
       this.endTurn('drawer-left');
     }
 
+    player.graceUntil = this.clock.now() + RECONNECT_GRACE_MS;
     player.graceTimer = this.clock.setTimeout(() => {
       player.graceTimer = null;
+      player.graceUntil = null;
       this.remove(playerId, 'left');
     }, RECONNECT_GRACE_MS);
 
@@ -1146,6 +1155,137 @@ export class Room {
     for (const id of this.players.keys()) {
       this.transport.emitToPlayer(id, 'state', this.stateFor(id));
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Snapshotting
+  // -------------------------------------------------------------------------
+
+  /**
+   * The whole room as plain data. Timers are deliberately left out: a
+   * callback cannot be written to a store, so what is kept is the deadline it
+   * would have fired at, and `rearm` reschedules from that on the way back in.
+   */
+  snapshot(): RoomSnapshot {
+    return {
+      version: SNAPSHOT_VERSION,
+      code: this.code,
+      settings: this.settings,
+      players: [...this.players.values()].map(({ graceTimer: _t, ...player }) => player),
+      seating: [...this.seating],
+      hostId: this.hostId,
+      phase: this.phase,
+      revealedWord: this.revealedWord,
+      round: this.round,
+      turnOrder: [...this.turnOrder],
+      turnIndex: this.turnIndex,
+      entry: this.entry,
+      choices: this.choices,
+      hintPlan: [...this.hintPlan],
+      hintsShown: this.hintsShown,
+      wordStart: this.wordStart,
+      hintWindow: this.hintWindow,
+      wordsCleared: this.wordsCleared,
+      lockedColor: this.lockedColor,
+      deadline: this.deadline,
+      phaseLength: this.phaseLength,
+      ops: this.ops,
+      nextOpId: this.nextOpId,
+      guessOrder: [...this.guessOrder],
+      guessScores: [...this.guessScores],
+      turnGains: { ...this.turnGains },
+      skipVotes: [...this.skipVotes],
+      kickVotes: [...this.kickVotes].map(([target, voters]) => [target, [...voters]]),
+      banned: [...this.banned],
+      usedWords: [...this.usedWords],
+      chatLog: this.chatLog,
+      closed: this.closed,
+      savedAt: this.clock.now(),
+      // Filled in by whoever owns the transport; the engine has no log.
+      events: [],
+      nextSeq: 1,
+    };
+  }
+
+  static restore(snapshot: RoomSnapshot, options: Omit<RoomOptions, 'code' | 'settings'>): Room {
+    const room = new Room({ ...options, code: snapshot.code, settings: snapshot.settings });
+    room.clearEmptyTimer();
+
+    room.settings = snapshot.settings;
+    room.seating = [...snapshot.seating];
+    room.hostId = snapshot.hostId;
+    room.phase = snapshot.phase;
+    room.revealedWord = snapshot.revealedWord;
+    room.round = snapshot.round;
+    room.turnOrder = [...snapshot.turnOrder];
+    room.turnIndex = snapshot.turnIndex;
+    room.entry = snapshot.entry;
+    room.choices = snapshot.choices;
+    room.hintPlan = [...snapshot.hintPlan];
+    room.hintsShown = snapshot.hintsShown;
+    room.wordStart = snapshot.wordStart;
+    room.hintWindow = snapshot.hintWindow;
+    room.wordsCleared = snapshot.wordsCleared;
+    room.lockedColor = snapshot.lockedColor;
+    room.deadline = snapshot.deadline;
+    room.phaseLength = snapshot.phaseLength;
+    room.ops = snapshot.ops;
+    room.nextOpId = snapshot.nextOpId;
+    room.guessOrder = [...snapshot.guessOrder];
+    room.guessScores = [...snapshot.guessScores];
+    room.turnGains = { ...snapshot.turnGains };
+    room.skipVotes = new Set(snapshot.skipVotes);
+    room.kickVotes = new Map(snapshot.kickVotes.map(([t, v]) => [t, new Set(v)]));
+    room.banned = new Set(snapshot.banned);
+    room.usedWords = new Set(snapshot.usedWords);
+    room.chatLog = snapshot.chatLog;
+    room.closed = snapshot.closed;
+
+    room.players = new Map(
+      snapshot.players.map((player) => [player.id, { ...player, graceTimer: null }]),
+    );
+    return room;
+  }
+
+  /**
+   * Put back the timers a snapshot could not carry, working from the
+   * deadlines it did. Call it after restoring and before advancing the clock,
+   * so the transitions that fell due while nothing was running still fire, in
+   * the order they would have.
+   */
+  rearm(): void {
+    const now = this.clock.now();
+    const left = (at: number | null) => Math.max(0, (at ?? now) - now);
+
+    if (this.phase === 'picking' && this.deadline !== null) {
+      const drawerId = this.drawerId;
+      this.phaseTimer = this.clock.setTimeout(() => {
+        this.phaseTimer = null;
+        if (drawerId) this.chooseWord(drawerId, 0, true);
+      }, left(this.deadline));
+    } else if (this.phase === 'drawing') {
+      this.scheduleTick();
+    } else if (this.phase === 'turn-end' && this.deadline !== null) {
+      this.phaseTimer = this.clock.setTimeout(() => {
+        this.phaseTimer = null;
+        this.advanceTurn();
+      }, left(this.deadline));
+    }
+
+    for (const player of this.players.values()) {
+      if (!player.disconnected || player.graceUntil === null) continue;
+      const id = player.id;
+      player.graceTimer = this.clock.setTimeout(() => {
+        const current = this.players.get(id);
+        if (current) {
+          current.graceTimer = null;
+          current.graceUntil = null;
+        }
+        this.remove(id, 'left');
+      }, left(player.graceUntil));
+    }
+
+    if (this.players.size === 0) this.armEmptyTimer();
   }
 
   /** Tear the room down and release its timers. */

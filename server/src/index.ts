@@ -19,6 +19,8 @@ import { systemClock } from './clock.js';
 import { RateLimiter } from './rateLimit.js';
 import type { Room, RoomTransport } from './room.js';
 import { RoomRegistry } from './rooms.js';
+import { handleApi } from './serverless/api.js';
+import { storeFromEnv } from './store.js';
 
 const PORT = Number(process.env.PORT ?? 3001);
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? '*';
@@ -37,6 +39,8 @@ const io = new Server<ClientToServer, ServerToClient>(httpServer, {
 });
 
 const registry = new RoomRegistry(systemClock);
+/** Backs the polling API; Redis when configured, memory otherwise. */
+const apiStore = storeFromEnv();
 
 /** Which room and seat a live socket belongs to. */
 const sessions = new Map<string, { room: Room; playerId: string }>();
@@ -265,6 +269,26 @@ io.on('connection', (socket) => {
     sessions.delete(socket.id);
     session.room.disconnect(session.playerId);
   });
+});
+
+// The polling API, the same handler Vercel runs. Mounted here too so the
+// serverless path can be exercised against a real server locally.
+app.use(express.json({ limit: '256kb' }));
+app.all('/api/{*path}', (request, response) => {
+  void handleApi(
+    {
+      method: request.method,
+      path: request.path.replace(/^\/api/, ''),
+      query: request.query as Record<string, string | undefined>,
+      body: request.body,
+    },
+    apiStore,
+  )
+    .then(({ status, body }) => response.status(status).json(body))
+    .catch((error: unknown) => {
+      console.error('api error', error);
+      response.status(500).json({ error: 'server-error' });
+    });
 });
 
 app.get('/healthz', (_request, response) => {

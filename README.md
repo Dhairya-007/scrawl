@@ -124,12 +124,28 @@ somewhere that supports WebSockets:
 redeploy the client if the server ever moves. `CLIENT_ORIGIN` is what lets the
 browser talk across origins; leave it unset and it allows any.
 
+**All on Vercel (client and server).** Vercel cannot hold a socket open, so
+this path swaps the transport: the client polls instead, and the engine runs
+inside a function, rebuilt from a store on each request. Import the repo, add
+a Redis database from **Storage → Marketplace → Upstash** (free tier; it sets
+`KV_REST_API_URL` and `KV_REST_API_TOKEN` for you), and redeploy.
+
+It works — a whole game plays out, drawing included — but it plays worse than
+the socket build. Strokes arrive on a poll rather than the instant they are
+drawn, so the canvas lags by a fraction of a second, and every request pays a
+round trip to Redis. Prefer the one-service deploy where you can.
+
+How the clock survives having no process: a room is stored with the time it
+was saved, and each request restores it, puts back the timers its deadlines
+imply, then winds the clock forward to now — firing every transition that
+fell due, in order. It is the same trick the tests use to play whole games in
+a millisecond.
+
 > A static or serverless host alone is not enough — Vercel, Netlify and Pages
-> all serve the client perfectly and none of them can run the server. It is
-> not a configuration problem: a `Room` keeps its players, its canvas and its
-> turn clock in process memory, and the clock is a timer on a live process.
-> Serverless invocations get neither. Pair any of them with a host from the
-> table above, or use the one-service route and skip the pairing.
+> all serve the client perfectly and none of them can run the server as it
+> stands. Pair one with a host from the table above, use the one-service
+> route, or take the all-on-Vercel path, which trades socket latency for a
+> polling transport and an external store.
 
 ### Integration check
 

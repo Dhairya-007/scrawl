@@ -8,6 +8,11 @@ interface ImportMetaEnv {
    * on a static host such as Netlify, which cannot hold a socket open.
    */
   readonly VITE_SERVER_URL?: string;
+  /**
+   * `http` makes the client poll instead of opening a socket. Needed on a
+   * host with no long-lived process; anything else uses Socket.IO.
+   */
+  readonly VITE_TRANSPORT?: 'http' | 'socket';
 }
 
 interface ImportMeta {

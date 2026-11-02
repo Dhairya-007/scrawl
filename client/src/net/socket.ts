@@ -1,7 +1,15 @@
 import { io, type Socket } from 'socket.io-client';
 import type { ClientToServer, ServerToClient } from '@scrawl/shared';
+import { PollingSocket } from './pollingSocket.js';
 
 export type GameSocket = Socket<ServerToClient, ClientToServer>;
+
+/**
+ * Which way to talk to the server. Sockets are the better experience and the
+ * default; polling exists for hosts that cannot keep a connection open, where
+ * a socket is simply not on offer.
+ */
+const TRANSPORT = import.meta.env.VITE_TRANSPORT === 'http' ? 'http' : 'socket';
 
 let socket: GameSocket | null = null;
 
@@ -16,6 +24,10 @@ const SERVER_URL = import.meta.env.VITE_SERVER_URL?.trim() || undefined;
 /** One socket for the whole session, opened lazily. */
 export function getSocket(): GameSocket {
   if (!socket) {
+    if (TRANSPORT === 'http') {
+      socket = new PollingSocket(SERVER_URL ?? '') as unknown as GameSocket;
+      return socket;
+    }
     socket = io(SERVER_URL, {
       autoConnect: true,
       transports: ['websocket', 'polling'],

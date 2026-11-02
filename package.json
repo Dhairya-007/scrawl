@@ -26,11 +26,13 @@
     "typecheck": "npm run build:shared && tsc --noEmit -p server && tsc --noEmit -p client",
     "test": "npm run build:shared && vitest run",
     "smoke": "node scripts/smoke.mjs",
-    "lint": "npm run typecheck"
+    "lint": "npm run typecheck",
+    "build:vercel": "npm run build:shared && npm run build:server && VITE_TRANSPORT=http npm run build -w @scrawl/client"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
     "typescript": "5.9.3",
-    "vitest": "^4.1.12"
+    "vitest": "^4.1.12",
+    "@vercel/node": "^5.3.28"
   }
 }

@@ -16,7 +16,13 @@ export const systemClock: Clock = {
 
 /** A clock whose time only moves when a test tells it to. */
 export class FakeClock implements Clock {
-  private current = 1_700_000_000_000;
+  private current: number;
+
+  /** `startAt` lets a restored room resume from the instant it was stored. */
+  constructor(startAt = 1_700_000_000_000) {
+    this.current = startAt;
+  }
+
   private nextId = 1;
   private timers = new Map<number, { at: number; fn: () => void }>();
 
