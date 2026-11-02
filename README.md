@@ -117,15 +117,19 @@ somewhere that supports WebSockets:
 
 | Half | Host | Build | Environment |
 |---|---|---|---|
-| Client | Netlify (`netlify.toml` included) | `npm run build:client` → `client/dist` | `VITE_SERVER_URL=https://your-server.example.com` |
+| Client | Vercel (`vercel.json`), Netlify (`netlify.toml`) or GitHub Pages (`pages.yml`) | `npm run build:client` → `client/dist` | `VITE_SERVER_URL=https://your-server.example.com` |
 | Server | Render / Fly / Railway | `npm run build:server` → `npm start` | `CLIENT_ORIGIN=https://your-site.netlify.app` |
 
 `VITE_SERVER_URL` is baked in at build time, so set it before building and
 redeploy the client if the server ever moves. `CLIENT_ORIGIN` is what lets the
 browser talk across origins; leave it unset and it allows any.
 
-> Netlify alone is not enough. It will serve the client perfectly, but with no
-> server behind it nobody can join a room.
+> A static or serverless host alone is not enough — Vercel, Netlify and Pages
+> all serve the client perfectly and none of them can run the server. It is
+> not a configuration problem: a `Room` keeps its players, its canvas and its
+> turn clock in process memory, and the clock is a timer on a live process.
+> Serverless invocations get neither. Pair any of them with a host from the
+> table above, or use the one-service route and skip the pairing.
 
 ### Integration check
 
