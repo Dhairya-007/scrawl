@@ -1,0 +1,13 @@
+# One free-tier web service: the Node process serves the API and the built
+# client, so there is no second deploy and no origin to configure.
+services:
+  - type: web
+    name: scrawl
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"

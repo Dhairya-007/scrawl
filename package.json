@@ -1,0 +1,36 @@
+{
+  "name": "scrawl",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A free, self-hostable multiplayer draw-and-guess party game.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "workspaces": [
+    "shared",
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "build:shared": "npm run build -w @scrawl/shared",
+    "dev": "npm run build:shared && concurrently -n server,client -c magenta,cyan \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "npm run dev -w @scrawl/server",
+    "dev:client": "npm run dev -w @scrawl/client",
+    "build": "npm run build:shared && npm run build -w @scrawl/server && npm run build -w @scrawl/client",
+    "build:client": "npm run build:shared && npm run build -w @scrawl/client",
+    "build:pages": "npm run build:client && cp client/dist/index.html client/dist/404.html",
+    "build:server": "npm run build:shared && npm run build -w @scrawl/server",
+    "start": "node server/dist/index.js",
+    "typecheck": "npm run build:shared && tsc --noEmit -p server && tsc --noEmit -p client",
+    "test": "npm run build:shared && vitest run",
+    "smoke": "node scripts/smoke.mjs",
+    "lint": "npm run typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "5.9.3",
+    "vitest": "^4.1.12"
+  }
+}

@@ -1,0 +1,208 @@
+@import '@fontsource-variable/baloo-2';
+@import '@fontsource-variable/nunito';
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'Baloo 2 Variable', 'Baloo 2', system-ui, sans-serif;
+  --font-sans: 'Nunito Variable', 'Nunito', system-ui, sans-serif;
+
+  /* Night-violet stage the whole game sits on. */
+  --color-night-900: #120828;
+  --color-night-800: #1b0f3a;
+  --color-night-700: #26154f;
+  --color-night-600: #341d6b;
+  --color-night-500: #48288f;
+
+  /* Full-strength accents. Every panel borrows one. */
+  --color-punch: #ff2e63;
+  --color-punch-dark: #c4003f;
+  --color-sun: #ffcc00;
+  --color-sun-dark: #d19f00;
+  --color-mint: #2fe3a0;
+  --color-mint-dark: #13a872;
+  --color-aqua: #17b8c9;
+  --color-aqua-dark: #0b8694;
+  --color-grape: #8b5cff;
+  --color-grape-dark: #5d2ad1;
+  --color-tangerine: #ff8a3d;
+
+  --color-ink: #120828;
+  --color-chalk: #fff8ec;
+
+  --shadow-chunk: 0 6px 0 0 var(--color-ink);
+  --shadow-chunk-sm: 0 4px 0 0 var(--color-ink);
+  --shadow-panel: 0 10px 0 0 rgba(10, 4, 24, 0.55);
+
+  --radius-chunk: 1.25rem;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    color: var(--color-chalk);
+    background-color: var(--color-night-900);
+    /* Two soft spotlights plus a flat base, so the stage is never flat grey. */
+    background-image:
+      radial-gradient(900px 600px at 12% -5%, rgba(139, 92, 255, 0.45), transparent 60%),
+      radial-gradient(800px 600px at 95% 10%, rgba(255, 46, 99, 0.3), transparent 60%),
+      radial-gradient(1000px 700px at 50% 110%, rgba(23, 184, 201, 0.28), transparent 60%);
+    background-attachment: fixed;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  button,
+  .font-display {
+    font-family: var(--font-display);
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+
+  /* Keyboard focus has to stay obvious against the loud background. */
+  :focus-visible {
+    outline: 3px solid var(--color-sun);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--color-sun);
+    color: var(--color-ink);
+  }
+}
+
+@layer components {
+  /* The one card shape the whole game is built from. */
+  .panel {
+    @apply rounded-[var(--radius-chunk)] border-4 border-ink bg-night-700/90 shadow-panel backdrop-blur-sm;
+  }
+
+  .panel-bright {
+    @apply rounded-[var(--radius-chunk)] border-4 border-ink shadow-panel;
+  }
+
+  /* A chunky button that visibly presses down. */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl border-4 border-ink px-5 py-2.5
+      text-lg text-ink shadow-chunk transition-[transform,box-shadow] duration-75
+      active:translate-y-1.5 active:shadow-none disabled:cursor-not-allowed disabled:opacity-50
+      disabled:active:translate-y-0 disabled:active:shadow-chunk;
+  }
+
+  .btn-sm {
+    @apply rounded-xl border-[3px] px-3 py-1.5 text-base shadow-chunk-sm active:translate-y-1;
+  }
+
+  .field {
+    @apply w-full rounded-2xl border-4 border-ink bg-chalk px-4 py-2.5 text-lg font-bold text-ink
+      placeholder:text-ink/40 focus:outline-none;
+  }
+
+  /* The dotted word blanks under the canvas. */
+  .blank {
+    @apply inline-block w-[0.72em] border-b-4 border-chalk/70 text-center align-baseline;
+  }
+}
+
+@layer utilities {
+  .text-stroke {
+    -webkit-text-stroke: 3px var(--color-ink);
+    paint-order: stroke fill;
+  }
+
+  .text-stroke-sm {
+    -webkit-text-stroke: 2px var(--color-ink);
+    paint-order: stroke fill;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-grape) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: var(--color-grape);
+    border-radius: 999px;
+  }
+
+  @keyframes pop-in {
+    from {
+      transform: scale(0.82) translateY(10px);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1) translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .animate-pop {
+    animation: pop-in 220ms cubic-bezier(0.2, 1.3, 0.4, 1) both;
+  }
+
+  @keyframes rise {
+    from {
+      transform: translateY(14px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .animate-rise {
+    animation: rise 260ms ease-out both;
+  }
+
+  @keyframes wobble {
+    0%,
+    100% {
+      transform: rotate(-2.5deg);
+    }
+    50% {
+      transform: rotate(2.5deg);
+    }
+  }
+
+  .animate-wobble {
+    animation: wobble 2.4s ease-in-out infinite;
+  }
+
+  @keyframes pulse-ring {
+    0% {
+      box-shadow: 0 0 0 0 rgba(255, 204, 0, 0.6);
+    }
+    100% {
+      box-shadow: 0 0 0 18px rgba(255, 204, 0, 0);
+    }
+  }
+
+  .animate-ring {
+    animation: pulse-ring 1s ease-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-pop,
+    .animate-rise,
+    .animate-wobble,
+    .animate-ring {
+      animation: none;
+    }
+  }
+}
